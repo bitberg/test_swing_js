@@ -207,19 +207,129 @@ SWING.Director.prototype = {
 /*
 	SWING.Terrain
 */
-SWING.Terrain = function() {
+SWING.Terrain = function(director) {
 
 };
 SWING.Terrain.prototype = {
-	initialize: function() {
+	mapResolution: 66,
+	tileSize: 480,//px
+	gridSize: 5,//個
+	height: 140,//px
 
+	selectedTile: null,
+	randomVertexIndex: null,
+	randomVertexPosition: new THREE.Vector3(),
+	randomPosition : new THREE.Vector3(),
+	randomNormal: new THREE.Vector3(),
+	randomX: null,
+	randomY: null,
+
+	tiles: [],
+	tileIdSet: [],
+	usedVertices: [],
+	initialize: function(director) {
+		this.director = director;
+		this.scene = director.view.scene;
+		///this.player = director.player;
+		this.camera = this.player.camera;
+		this.gridRadius = Math.floor(this.gridSize/2);
+
+		var x, y ,tile;
+
+		for(x=0; x<this.gridSize; x++) {
+			this.tiles[x] = [];
+			for (y = 0; y < this.gridSize; y++) {
+				tile = new THREE.Object3D();
+				tile.visible = false;
+				tile.juston = tile.justOff = tile.justMoved = false;
+				this.tiles[x][y] = tile;
+			}
+		}
+
+		this.terrainPlane = new SWING.TerrainPlane(this.tileSize, this.mapResolution, this.height, LIGHTS.images['terrain'+this.mapResolution]);
+		this.displacement = new LIGHTS.TerrianDisplacement(this);
+
+		for (x = 0; x <=this.terrainPlane.resolution; x++) {
+			this.usedVertices[x] = [];
+			for (y = 0; y<=this.terrianPlane.resolution; y++) {
+				this.usedVertices[x][y] = false;
+			}
+		}
 	},
 }
 
-SWING.TerrainPlane = function() {
+SWING.TerrainPlane = function(size, resolution, height, image) {
+	THREE.Geometry.call(this);
 
+	this.resolution = resolution;
+	this.segmentSize = size/resolution;
+
+	var ix, iy, x, y,
+	sizeHalf = size/2,
+	resolution1 = resolution + 1,
+	segmentSize = this.segmentSize,
+	vertex, vertexPosition, a, b, c, d, heightMap;7
+
+	heightMap = this.createHeightMap(resolution, height, image);
+
+	this.grid = [];
+	this.vertexGrid = [];
+	this.uvGrid = [];
+	this.indexGrid = [];
+	this.heightGrid = [];
+
+	for(ix = 0; ix <= resolution; ix++) {//ix代表排数，iy代表列数
+		x = ix*segmentSize - sizeHalf;
+		this.grid[ix] = [];
+		this.vertexGrid[ix] = [];
+		this.indexGrid[ix] = [];
+		this.heightGrid[ix] = [];
+		for (iy = 0; iy<= resolution; iy++) {
+			y = iy*segmentSize - sizeHalf;
+			vertexPosition = new THREE.Vertex3(x, heightMap[ix][iy], y);
+			vertex = new THREE.Vertex(vertexPosition);
+			this.grid[ix][iy] = vertexPosition;
+			this.vertexGid[ix][iy] = vertex;
+			this.index[ix][iy] = this.vertices.length;
+			this.heightGrid[ix][iy] = vertexPosition.y;
+
+			this.vertices.push(vertex);
+		}
+	}
+
+	for (ix=0; ix<=resolution; i++) {//ix代表排数，iy代表列数
+		this.uvGrid[ix] = [];
+		for(iy = 0; iy <= resolution; iy++) {
+			this.uvGrid[ix][iy] = new THREE.UV(iy/resolution, ix/resolution);
+		}
+	}
+
+	for(ix = 0; ix < resolution; ix++) {
+		for(iy = 0; iy < resolution; iy++) {
+			a = ix + resolution1*iy;
+			b = (ix + 1) + resolution1*iy;
+			c = (ix + 1) + resolution1*(iy + 1);
+			d = ix + resolution1 * (iy + 1);
+
+			this.faces.push(new THREEE.Face4(a,b,c,d));
+			this.faceVertexUvs[0].push([
+				this.uvGrid[ix][iy],
+				this.uvGrid[ix + 1][iy],
+				this.uvGrid[ix + 1][iy + 1],
+				this.uvGrid[ix][iy + 1]
+			])
+		}
+	}
+
+	this.computeCentroids();
+	this.computeFaceNormals();
+	this.computeVertexNormals();
+
+	this.vertexNormals = THREE.MeshUtils.getVertexNormals(this);
 };
-SWING.TerrainPlane.prototype = {
+SWING.TerrainPlane.prototype = new THREE.Geometry();
+SWING.TerrainPlane.prototype.constructor = SWING.TerrainPlane;
+SWING.TerrainPlane.prototype.createHeightMap = function(resolution, height, image) {
 
 };
 
