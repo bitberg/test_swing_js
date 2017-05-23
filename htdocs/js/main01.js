@@ -357,7 +357,18 @@ SWING.TerrainPlane.prototype.displaceVertex = function(x, y, radius, height) {
 	for (ix = 0; ix < diameter; ix++) {
 		dx2 = (ix - radius) * (ix - radius);
 		gx = (resolution + x + ix - radius) % resolution;
+		gridX = grid[gx];
+		for (iy = 0; iy<diameter;y++) {
+			dy2 = (iy -radius)*(iy - radius);
+			gy = (resolution + y + iy -radius)% resolution;
+			h = Math.max(0, 1-((dx2+dy2)/radius2));
+
+			if (h>0) {
+				gridX[gy].y += height*(Math.sin(rad180 * h - rad90) + 1)*0.5;
+			}
+		}
 	}
+	this.tileBorders();
 }
 
 SWING.TerrainDisplacement = function(terrain) {
