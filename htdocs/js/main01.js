@@ -246,8 +246,8 @@ SWING.Terrain.prototype = {
 			}
 		}
 
-		this.terrainPlane = new SWING.TerrainPlane(this.tileSize, this.mapResolution, this.height, LIGHTS.images['terrain'+this.mapResolution]);
-		this.displacement = new LIGHTS.TerrianDisplacement(this);
+		this.terrainPlane = new SWING.TerrainPlane(this.tileSize, this.mapResolution, this.height, SWING.images['terrain'+this.mapResolution]);
+		this.displacement = new SWING.TerrainDisplacement(this);
 
 		for (x = 0; x <=this.terrainPlane.resolution; x++) {
 			this.usedVertices[x] = [];
@@ -332,6 +332,98 @@ SWING.TerrainPlane.prototype.constructor = SWING.TerrainPlane;
 SWING.TerrainPlane.prototype.createHeightMap = function(resolution, height, image) {
 
 };
+SWING.TerrainPlane.prototype.tileBorders = function() {
+	var resolution = this.resolution,
+		grid = this.grid;
+
+	var x, y, gridX = grid[resolution], gridX0 = grid[0];
+	for (y = 0; y < resolution; y++) {
+		gridX[y].y = gridX0[y].y;
+	}
+	for (x = 0; x < resolution; x++) {
+		grid[x][resolution].y = grid[x][0].y;
+	};
+
+	this.__dirtyVertices = true;//important;
+
+};
+SWING.TerrainPlane.prototype.displaceVertex = function(x, y, radius, height) {
+	var radius2 = radius*radius,
+		diameter = radius * 2,
+		resolution = this.resolution,
+		grid = this.grid,
+		ix, iy, dx2, dy2, gx, gy, gridX, gridX0, h;
+
+	for (ix = 0; ix < diameter; ix++) {
+		dx2 = (ix - radius) * (ix - radius);
+		gx = (resolution + x + ix - radius) % resolution;
+	}
+}
+
+SWING.TerrainDisplacement = function(terrain) {
+	this.initialize(terrain);
+}
+SWING.TerrainDisplacement = {
+	active : false,
+
+	initialize: function(terrain) {
+		this.terrain = terrain;
+		this.terrainPlain = terrain.terrainPlain;
+		this.spectrum = null;
+
+		this.velocities = [];
+
+		var xl = this.terrainPlain.resolution, x;
+
+		for (x = 0; x < xl; x++) {
+			this.velocities[x] = [];
+		}
+	},
+	update : function() {
+		/*switch (SWING.Music.phase.index) {
+			case 15:
+			case 21:
+				this.updateSpectrum();
+				break;
+			case 16:
+			case 22:
+				this.updateFlat();
+				break;
+
+			case 17:
+				this.updateTerrain();
+				break;
+		}*/
+		this.updateTerrain();
+	},
+	updateTerrain: function() {
+		var grid = this.terrainPlain.grid,
+			heightGrid = this.terrainPlain.heightGrid,
+			resolution = this.terrainPlain.resolution,
+			velocities = this.velocities,
+			deltaTime = SWING.deltaTime * 0.5,
+			drag = 1 - SWING.deltaTime * 5,
+			x, xl, y, yl, gridX, gridXY, posY, heightGridX, velocity, velocityX;
+
+		for (x = 0, xl = resolution; x < xl; x++) {
+			gridX = grid[x];
+			heightGridX = heightGrid[x];
+			velocityX = velocities[x];
+
+			for (y = 0, yl = resolution; y < yl; y++) {
+				gridXY = gridX[y];//THREE.Vector3;
+				posY = gridXY.y;
+				velocityX[y] *= drag;
+				velocityX[y] += (heightGridX[y] - posY) * (Math.abs(posY) * deltaTime);//posY越大,右边的乘数越接近0或者负数越来越小;deltaTime越大,右边如果是正数则越来越大,如果是负数,则越来越小;
+				gridXY.y += velocityX[y];
+			}
+		}
+		this.terrainPlain.tileBorders();
+		this.terrainPlain.computeFaceNormals();
+		this.terrainPlain.computeVertexNormals();
+	},
+
+}
 
 
 SWING.TileManager = function() {
