@@ -262,7 +262,7 @@ SWING.Terrain.prototype = {
 			cameraY = this.camera.position.z,//important 間違っていないか？yのはず？
 			sin = Math.sin(this.player.angle),
 			cos = Math.cos(this.player.angle),
-			x, y , r, angle, deltaX, deltaY, tile,tileX, tileY,tileId, tielVisible;
+			x, y , r, angle, deltaX, deltaY, tile,tileX, tileY,tileId, tileVisible;
 
 		this.cameraTileX = (Math.round(cameraX/ this.tileSize) - this.gridRadius) * this.tileSize;
 		this.cameraTileY = (Math.round(cameraY/ this.tileSize) - this.gridRadius) * this.tileSize;
@@ -278,9 +278,31 @@ SWING.Terrain.prototype = {
 				deltaX = tileX - cameraX;
 				deltaY = tileY - cameraY;
 
-				angle = Math.atan2(deltaX, deltaY);//atan2(y,x);
+				angle = Math.atan2(deltaX, deltaY);//点到Z正轴的角度，顺时针为正//atan2(y,x);
 
 				r = Math.floor(Math.max(Math.abs(x - this.gridRadius), Math.abs(y - this.gridRadius)));
+
+				if (r > 1) {
+					tileVisible = (cos * Math.cos(angle) + sin * Math.sin(angle)) < -0.5;
+				} else if (r == 1) {
+					tileVisible = (cos * Math.cos(angel) + sin * Math.sin(angle)) < 0.5;
+				} else tileVisible = true;
+
+				tile = this.tiles[x][y];
+				if (tileVisible) {
+					tile.justOff = false;
+					tile.justOn = !tile.visible;
+
+					if (tile.justOn) {
+						this.scene.addChild(tile);
+						tile.visible = true;
+					}
+					tileId = tileX+"/"+tileY;
+					this.tileIdSet[tileId] = true;
+					tile.justMoved = (tile.tileId != tileId);
+
+					if ()
+				}
 			}
 		}
 		//resumne
