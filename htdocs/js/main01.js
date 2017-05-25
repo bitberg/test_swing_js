@@ -256,6 +256,35 @@ SWING.Terrain.prototype = {
 			}
 		}
 	},
+
+	update: function() {
+		var cameraX = this.camera.positon.x,
+			cameraY = this.camera.position.z,//important 間違っていないか？yのはず？
+			sin = Math.sin(this.player.angle),
+			cos = Math.cos(this.player.angle),
+			x, y , r, angle, deltaX, deltaY, tile,tileX, tileY,tileId, tielVisible;
+
+		this.cameraTileX = (Math.round(cameraX/ this.tileSize) - this.gridRadius) * this.tileSize;
+		this.cameraTileY = (Math.round(cameraY/ this.tileSize) - this.gridRadius) * this.tileSize;
+
+		for (tileId in this.tileIdSet) {
+			delete this.tileIdSet[tileId];
+		}
+
+		for (x = 0 ; x < this.gridSize; x++) {
+			for (y =0 ; y< this.gridSize; y++) {
+				tileX = this.cameraTileX + this.tileSize * x;
+				tileY = this.cameraTileY + this.tileSize * y;//blockの左下を(0,0)に
+				deltaX = tileX - cameraX;
+				deltaY = tileY - cameraY;
+
+				angle = Math.atan2(deltaX, deltaY);//atan2(y,x);
+
+				r = Math.floor(Math.max(Math.abs(x - this.gridRadius), Math.abs(y - this.gridRadius)));
+			}
+		}
+		//resumne
+	},
 }
 
 SWING.TerrainPlane = function(size, resolution, height, image) {
@@ -330,7 +359,66 @@ SWING.TerrainPlane = function(size, resolution, height, image) {
 SWING.TerrainPlane.prototype = new THREE.Geometry();
 SWING.TerrainPlane.prototype.constructor = SWING.TerrainPlane;
 SWING.TerrainPlane.prototype.createHeightMap = function(resolution, height, image) {
+	var heightMap = [],
+		imageCanvas = document.createElement("canvas"),
+		imageContex = imageCanvas.getContext("2d"),
+		imageData, x, y, ix, iy, blurRadius, blurBuffer, blurAcc, bx, by;
 
+	imageContext.drawImage(image, 0 ,0);
+	imageData = imageContext.getImageData(0, 0, resolution, resolution).data;
+
+	for (x = 0; x <= resolution; x++) {
+		heightMap[x] = [];
+	}
+	for (x = 0; x <= resolution; x++) {
+		ix = (x < resolution) ? x : 0;
+		for (y = 0; y < resolution; y++) {
+			iy = (y < resolution) ? y : 0;
+			heightMap[x][y] = imageData[ (ix + iy*resolution) * 4];
+		}
+	}
+
+	blurRadius = 2;
+	blurBuffer = [];
+
+	for(x = 0; x <=resolution; x++) {
+		blurBuffer[x] = heightMap[x].slice(0);//copy of heightmap
+	}
+	for (x=0;x<=resolution;x++) {
+		for(y = 0; y<= resolution; y++) {
+			blurAcc =0;
+
+			for (by = -blurRadius; by <= blurRadius; by++) {
+				for (bx = -blurRadius; bx <= blurRadius; bx++) {
+					ix = x + bx;
+					iy = y + by;
+
+					if (ix < 0) {
+						ix += resolution;
+					} else if (ix > resolution) {
+						ix -=resolution;
+					}
+
+					if (iy < 0) {
+						iy += resolution;
+					} else if (iy > resolution) {
+						iy -= resolution;
+					}
+
+					blurAcc += blurBuffer[ix][iy];
+				}
+			}
+
+			heightMap[x][y] = blurAcc/((blurRadius*2 + 1)*(blurRadius*2 + 1));
+		}
+	}
+
+	for (x = 0; x <=resolution; x++) {
+		for (y = 0; y <=resolution; y++) {
+			heightMap[x][y] = height*((heightMap[x][y] - 128)/255);
+		}
+	}
+	return heightMap;
 };
 SWING.TerrainPlane.prototype.tileBorders = function() {
 	var resolution = this.resolution,
@@ -353,8 +441,25 @@ SWING.TerrainPlane.prototype.displaceVertex = function(x, y, radius, height) {
 		resolution = this.resolution,
 		grid = this.grid,
 		ix, iy, dx2, dy2, gx, gy, gridX, gridX0, h;
+		////////////////////////////////////////
+	var ixl = x + radius,
+		iyl = y + radius;
+	for (ix = x-radius; ix < ixl; ix++ ) {
+		dx2 = (ix - x)*(ix-x);
+		gx = (ix + resolution) % resolution;
+		gridX = grid[gx];
+		for (iy = y - radius; iy < iyl; iy++) {
+			dy2 = (iy - y)*(iy - y);
+			gy = (iy + resolution) % resolution;
+			h = (1 - (dx2+dy2)/radius2);
 
-	for (ix = 0; ix < diameter; ix++) {
+			if (h > 0) {
+				gridX[gy].y += height*(Math.sin(rad180 * h - rad90) + 1)*0.5;
+			}
+		}
+	}
+	//////////////////////////////////////////////
+	/*for (ix = 0; ix < diameter; ix++) {
 		dx2 = (ix - radius) * (ix - radius);
 		gx = (resolution + x + ix - radius) % resolution;
 		gridX = grid[gx];
@@ -367,8 +472,20 @@ SWING.TerrainPlane.prototype.displaceVertex = function(x, y, radius, height) {
 				gridX[gy].y += height*(Math.sin(rad180 * h - rad90) + 1)*0.5;
 			}
 		}
-	}
+	}*/
 	this.tileBorders();
+}
+SWING.TerrianPlane.prototype.resetVertices = function() {
+	for(var x = 0; x <= this.resolution; x++) {
+		for (var y = 0; y <= this.resolution; y++) {
+			this.grid[x][y].y = this.heightGrid[x][y];
+		}
+	}
+	this.__dirtyVertices = true;
+
+	this.computeCentroids();
+	this.computeFaceNormals();
+	this.computeVertexNormals();
 }
 
 SWING.TerrainDisplacement = function(terrain) {
