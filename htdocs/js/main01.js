@@ -301,13 +301,130 @@ SWING.Terrain.prototype = {
 					this.tileIdSet[tileId] = true;
 					tile.justMoved = (tile.tileId != tileId);
 
-					if ()
+					if (tile.justMoved) {
+						tile.position.x = tileX;
+						tile.position.z = tileY;
+						tile.tileId = tileId;
+					}
+				} else {
+					tile.justOff = tile.visible;
+					tile.justOn = false;
+
+					if (tile.justOff) {
+						this.scene.removeChild(tile);
+						tile.visible = false;
+					}
 				}
 			}
 		}
-		//resumne
+		if (this.displacement.active) {
+			this.displacement.update();
+		}
 	},
-}
+	isVisible: function(posX, posY) {
+		var posTileX = (Math.round(posX/this.tileSize) - this.gridRadius) * this.tileSize,
+			posTileY = (Math.round(posY/this.tileSize) - this.gridRadius) * this.tileSize,
+			x = (posTileX - this.cameraTileX) / this.tileSize + this.gridRadius,
+			y = (posTIleY - this.CameraTileY) / this.tileSize + this.gridRadius;
+
+		if (isNaN(x) || isNaN(y) || x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize) {
+			return false;
+		} else return this.tiles[x][y].visible;
+	},
+	reset: function() {
+		var x, y;
+
+		for (x = 0; x <= this.terrainPlain.resolution; x++) {
+			for (y =0 ;y <= this.terrainPlain.resolution; y++) {
+				this.usedVertices[x][y] = false;
+			}
+		}
+		this.terrainPlain.resetVertices();
+	},
+	selectTile: function(x,y) {
+		this.selectedTile = this.tiles[x][y];
+	},
+	selectTileById: function(tileId) {
+		var x, y ,tilesX;
+		for (x = 0; x < this.gridSize; x++) {
+			tilesX = this.tiles[x];
+			for( y =0; y < this.gridSize; y++) {
+				if (tilesX[y].tildId = tileId) {
+					this.selectedTile = tilesX[y];
+					return true;
+				}
+			}
+		}
+		return false;
+	},
+	selectRandomTileAtRadius: function(radius) {
+		var tries = 100, x, y ,t;
+
+		do {
+			x = this.gridRadius + radius*((Math.random() > 0.5) ? 1 : -1);
+			y = this.gridRadius - radius + Math.floor(Math.random() * radius * 2);
+			if (Math.random() > 0.5) {
+				t = x;
+				x = y; 
+				y = t
+			}
+			this.selectedTile = this.tiles[x][y];
+		} while( --tries > 0 && ! this.selectedTile.visible);
+
+		if (tries == 0) {
+			console.log( this.selectedTile.visible, x, y, radius );
+			console.error( "ERROR: Terrain.selectRandomTileAtRadius: Not found" );		}
+	},
+	selectTerrainRandomVertex: function(empty, radius, border) {
+
+	},
+	selectTerrainRandomCoords: function( empty, radius, border) {
+		var resolution = this.terrainPlain.resolution,
+		usedVertices = this.usedVertices,
+		tries = 100,
+		radius2 = empty ? radius * radius : 0,
+		stillEmpty, x, y ,ix ,iy, ixl, iyl, dx, dy;
+
+		if (border === undefined) border = 0;
+		do {
+			var log = Math.random() > 0.98;
+
+			x = border + Math.floor(Math.random()* (resolution - border * 2));
+			y = border + Math.floor(Math.random() * (resolution - border * 2));
+
+			if (empty) {//円の中身の点がすべてが使われていないという条件
+				stillEmpty = true;
+
+				for( ix = x -radius, ixl = x + radius; ix < ixl && stillEmpty; ix++) {
+					dx = (x - ix ) * (x - ix);
+					for (iy = y - radius, iyl = y + radius; iy < iyl && stillEmpty; iy++) {
+						dy  = (y -iy)*(y - iy);
+						if (dx + dy <= radius2) {
+							stillEmpty = !usedVertices[Math.abs(ix%resolution)][Math.abs(iy%resolution)];
+						}
+					}
+				}
+			} else stillEmpty = false;
+		} while (--tries > 0 && empty && !stillEmpty);
+
+		if (tries == 0) {
+			console.log( "ERROR: Terrain.selectTerrainRandomCoords: Not found" );
+		} else if (empty) {//找到了内部一个点都没用过的圆，这把圆内部的点全部标记为用过的
+			for (ix = x -radius, ixl =x + radius; ix < ixl && stillEmpty; ix++) {
+				dx = x - ix;
+				for (iy = y -radius, iyl = y + radius; iy < iyl && stillEmpty; iy++) {
+					dy = y -iy;
+					if (dx * dx + dy*dy <= radius2) {
+						usedVertices[Math.abs(ix % resolution)][Math.abs(iy % resolution)] = true;
+					}
+				}
+			}
+		}
+		this.randomX = x;
+		this.randomY = y;
+	}
+	//resume
+} 
 
 SWING.TerrainPlane = function(size, resolution, height, image) {
 	THREE.Geometry.call(this);
