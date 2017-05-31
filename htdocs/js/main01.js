@@ -365,7 +365,7 @@ SWING.Terrain.prototype = {
 			y = this.gridRadius - radius + Math.floor(Math.random() * radius * 2);
 			if (Math.random() > 0.5) {
 				t = x;
-				x = y; 
+				x = y;
 				y = t
 			}
 			this.selectedTile = this.tiles[x][y];
@@ -373,10 +373,21 @@ SWING.Terrain.prototype = {
 
 		if (tries == 0) {
 			console.log( this.selectedTile.visible, x, y, radius );
-			console.error( "ERROR: Terrain.selectRandomTileAtRadius: Not found" );		}
+			console.error( "ERROR: Terrain.selectRandomTileAtRadius: Not found" );
+		}
 	},
 	selectTerrainRandomVertex: function(empty, radius, border) {
+		this.selectTerrainRandomCoords(empty, radius, border);
 
+		if (empty) {
+			this.usedVertices[this.randomX][this.randomY] = true;
+		}
+		this.randomVertexIndex = this.terrainPlane.indexGrid[this.randomX][this.randomY];
+		this.randomVertex = this.terrainPlane.vertices[this.randomVertexIndex];
+		this.randomVertexPosition.copy(this.randomVertex.position);
+
+		this.randomPosition.add(this.selectedTile.postion, this.randomVertexPosition);
+		this.randomNormal = this.terrainPlain.vertexNormals[this.randomVertexIndex];
 	},
 	selectTerrainRandomCoords: function( empty, radius, border) {
 		var resolution = this.terrainPlain.resolution,
@@ -424,7 +435,7 @@ SWING.Terrain.prototype = {
 		this.randomY = y;
 	}
 	//resume
-} 
+};
 
 SWING.TerrainPlane = function(size, resolution, height, image) {
 	THREE.Geometry.call(this);
@@ -693,13 +704,148 @@ SWING.TerrainDisplacement = {
 }
 
 
-SWING.TileManager = function() {
-
+SWING.TileManager = function(director) {
+	this.initialize(director);
 };
 SWING.TileManager.prototype = {
+	estimatedTileCount : 16,
 
+	containers: [],
+	containerTable: {},
+	containerPool: [],
+	managers: [],
+
+	initialize: function(director) {
+		this.director = director;
+		this.terrain = director.terrain;
+		this.scene = director.view.scene;
+
+		/*this.stars = new SWING.StarManager(director);
+		this.managers.push(this.stars);*/
+
+		this.terrainDots = new SWING.TerrainDotsManager(director);
+		this.managers.push(this.terrainDots);
+		this.terrainMesh = new SWING.TerrainMeshManager(director);
+		this.managers.push(this.terrainMesh);
+		/*this.balls = new LIGHTS.BallsManager(director);
+		this.managers.push(this.balls);
+		this.cannons = new SWING.CannonManager(director);
+		this.managers.push(this.cannons);*/
+
+		for(var i = 0; i< this.estimatedTileCount; i++) {
+			this.containerPool.push(this.createTileContainer());
+		}
+		this.ready = false;
+	},
+	createTileContainer: function() {
+		var container = new THREE.Object3D();
+		this.containers.push(container);
+		var tiles = [];
+		/*container.balls = new SWING.BallsTile(this.balls, container);
+		tiles.push(container.balls);
+		container.stars = new SWING.StarTile(this.stars, container);
+		tiles.push(container.stars);*/
+		tiles.push(new SWING.TerrainDotsTile(this.terrainDots));
+		tiles.push(new SWING.TerrainMeshTile(this.terrainMesh));
+		/*tiles.push(new SWING.CannonsTIle(this.cannons));*/
+		container.tiles = tiles;
+		this.scene.addChild(container);
+		return container;
+	},
+	apply: function() {
+		for (var i in this.containerTable) {
+			this.updateTiles(this.containerTable[i]);
+		}
+	},
+	update: function() {
+		var managers = this.managers,
+			container, containerId, manager, i, il,
+			removed = 0, added =0, terrainCount = 0, containerCount = 0;
+		for (containerId in this.containerTable) {//見えるtileの管理場所
+			if (this.terrain.tileIdSet[containerId] != true) {
+				container = this.containerTable[containerId];
+				delete this.containerTable[containerId];
+				this.containerPool.push(container);
+				THREE.SceneUtils.showHierarchy(container, false);
+				container.visible = false;
+				removed++;//containerTableの中の見えないtileの数
+			} else {
+				containerCount++;//containerTableの中の見えるtileの数
+			}
+		}
+		for (containerId in this.terrain.tileIdSet) {
+			if (this.containerTable[containerId] === undefined) {
+				if (this.containerPool.length > 0) {
+					container = this.containerPool.pop();
+					container.visible = true;
+				} else {
+					container = this.createTileContainer();
+				}
+				this.terrain.selectTileById(containerId);
+				container.position.copy(this.terrain.selectedTile.position);
+				this.updateTiles(container);
+				this.containerTable[containerId] = container;
+				added++;
+				containerCount++
+			}
+			terrainCount++;
+		}
+		//以上是同步containerTable和terrain.tileIdSet；
+		for (i = 0, il = managers.length; i<il;i++) {
+			manager = this.managers[i];
+			if (manager.active) {
+				manager.update();
+			}
+		}
+	},
+	updateTiles: function(container) {
+		var i, j , tile, active, child;
+		for (i =0; i<container.tiles.length;i++) {
+			tile =container.tiles[i];
+			active = tile.manager.active;
+			for (j = 0; j < tile.children.length; j++) {
+				child = tile.children[j];
+				if (child.interactive) {
+					if (active && child.active) {
+						if (child.parent !== container) {
+							THREE.MeshUtils.addChild(this.scene, container, child);
+						}
+					} else {
+						if (child.parent === container) {
+							THREE.MeshUtils.removeChild(this.scene,container,child);
+						}
+					}
+				} else {
+					if (active) {
+						if (child.parent !== container) {
+							THREE.MeshUtils.addChild(this.scene, container, child);
+							child.visible = true;
+						}
+					} else {
+						if (child.parent === container) {
+							THREE.MeshUtils.removeChild(this.scene, container, chld);
+							child.visible = false;
+						}
+					}
+				}
+			}
+		}
+		container.balls.updateTile();
+		container.stars.updateTile();
+	}//resume
 };
-
+SWING.TerrainMeshTile = function(manager) {
+	this.initialize(manager);
+}
+SWING.TerrianMeshTile = {
+	initialize: function(manager) {
+		this.manager = manager;
+		this.children = [];
+		var mesh = new THREE.Mesh(manager.gometry, manager.material);
+		mesh.dynamic = true;
+		this.children.push(mesh);
+	}
+}
 SWING.Skybox = function() {
 
 };
